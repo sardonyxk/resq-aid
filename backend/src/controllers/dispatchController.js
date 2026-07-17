@@ -1,7 +1,6 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { supabase } from '../config/supabase.js';
+import { findNearestTeamForLocation } from '../services/dispatchService.js';
 
-// GET /api/dispatch/nearest-team?lat=...&lng=...&radiusMeters=...
 export const findNearestTeam = asyncHandler(async (req, res) => {
   const { lat, lng, radiusMeters } = req.query;
 
@@ -16,16 +15,11 @@ export const findNearestTeam = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'lat and lng must be valid numbers' });
   }
 
-  const { data, error } = await supabase.rpc('nearest_available_team', {
-    lat: parsedLat,
-    lng: parsedLng,
-    radius_meters: radiusMeters ? Number(radiusMeters) : 10000,
-  });
+  const teams = await findNearestTeamForLocation(
+    parsedLat,
+    parsedLng,
+    radiusMeters ? Number(radiusMeters) : undefined
+  );
 
-  if (error) {
-    // Let the centralized error handler decide status/format
-    throw Object.assign(new Error(error.message), { status: 500 });
-  }
-
-  res.json({ teams: data });
+  res.json({ teams });
 });

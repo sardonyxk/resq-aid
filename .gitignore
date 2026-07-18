@@ -1,6 +1,9 @@
+# Ignore old/unused frontend folder entirely
+frontend/
+
 # Dependencies
 node_modules/
-frontend/node_modules/
+demo-frontend/node_modules/
 backend/node_modules/
 **/node_modules/
 
@@ -10,14 +13,14 @@ backend/node_modules/
 .env.development
 .env.production
 .env.*.local
-frontend/.env
+demo-frontend/.env
 backend/.env
 
 # Build output
 dist/
 build/
-frontend/dist/
-frontend/build/
+demo-frontend/dist/
+demo-frontend/build/
 backend/dist/
 
 # Logs
@@ -42,7 +45,7 @@ Thumbs.db
 
 # Cache
 .cache/
-frontend/.cache/
+demo-frontend/.cache/
 .npm/
 .eslintcache
 

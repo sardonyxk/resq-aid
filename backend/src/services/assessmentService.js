@@ -8,6 +8,7 @@ Assess the visible situation and respond with ONLY a JSON object (no markdown, n
 preamble, no code fences) matching exactly this shape:
 
 {
+  "animalDetected": <true|false>,
   "urgencyScore": <integer 1-5, where 5 is life-threatening and needs immediate dispatch>,
   "injurySummary": "<one or two sentence plain description of what's visible>",
   "confidence": "<low|medium|high>",
@@ -15,9 +16,19 @@ preamble, no code fences) matching exactly this shape:
 }
 
 Rules:
+- Set animalDetected to false ONLY if no animal is visible at all in the image.
+  If animalDetected is false, urgencyScore is meaningless -- still include a number
+  for schema consistency, but it should be ignored by the caller.
 - If the image is ambiguous, blurry, or you are uncertain about severity, err toward
   a HIGHER urgencyScore rather than a lower one -- missing a critical injury is far
   worse than an unnecessary dispatch.
+- Do not assume a reddish or dark patch is blood based on color alone. Distinguish
+  natural fur/feather coloring (even, matte, follows the body's natural coat pattern)
+  from actual injury indicators (wet/glossy texture, irregular placement, visible
+  wound edges, matting, or the animal favoring/protecting the area).
+- If genuinely uncertain whether a mark is an injury or natural coloring, reflect
+  that uncertainty by setting confidence to "low" rather than guessing high urgency
+  from color alone.
 - Do NOT attempt to guess or state any GPS coordinates, address, or location from
   the image. Location is handled separately by the reporting citizen.
 - If no animal or injury is visible at all, set urgencyScore to 1 and explain why
@@ -36,6 +47,7 @@ Analyze the report text and extract:
 Respond with ONLY a JSON object (no markdown, no preamble, no code fences) matching exactly:
 
 {
+  "animalDetected": <true|false>,
   "urgencyScore": <integer 1-5, where 5 is life-threatening and needs immediate dispatch>,
   "injurySummary": "<one or two sentence plain restatement of the reported situation>",
   "confidence": "<low|medium|high>",
@@ -43,6 +55,9 @@ Respond with ONLY a JSON object (no markdown, no preamble, no code fences) match
 }
 
 Rules:
+- Set animalDetected to false ONLY if the text does not actually describe any animal
+  at all (e.g. spam, unrelated text). If animalDetected is false, urgencyScore is
+  meaningless -- still include a number for schema consistency.
 - Text-only reports carry inherent uncertainty since there is no visual confirmation.
   If the text lacks clear clinical indicators of severity, apply a DEFAULT CERTAINTY
   PENALTY: cap confidence at "low" and do not assign urgencyScore above 3 unless the

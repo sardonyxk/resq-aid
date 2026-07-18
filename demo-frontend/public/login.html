@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ResQ-Aid — Log In</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+</style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+
+  <header class="bg-white border-b border-slate-200 px-6 py-4">
+    <div class="max-w-3xl mx-auto flex items-center gap-3">
+      <div class="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">🚑</div>
+      <div>
+        <h1 class="text-lg font-extrabold tracking-tight text-slate-900">ResQ-Aid</h1>
+        <p class="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">Kathmandu Valley Pet Rescue</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-md mx-auto px-4 py-10 flex flex-col gap-6">
+
+    <div id="toast" class="hidden fixed top-5 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full shadow-xl text-sm font-medium"></div>
+
+    <div class="text-center">
+      <h2 class="text-xl font-bold text-slate-900">Log in to report a rescue</h2>
+      <p class="text-sm text-slate-500 mt-1">You'll need an account so responders can follow up with you.</p>
+    </div>
+
+    <!-- Tab switcher -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-1.5 flex gap-1">
+      <button type="button" id="tabLogin" class="flex-1 text-sm font-semibold py-2 rounded-xl bg-slate-900 text-white transition">Log in</button>
+      <button type="button" id="tabSignup" class="flex-1 text-sm font-semibold py-2 rounded-xl text-slate-500 hover:bg-slate-50 transition">Sign up</button>
+    </div>
+
+    <!-- Login form -->
+    <form id="loginForm" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col gap-4">
+      <div>
+        <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">Email</label>
+        <input type="email" id="loginEmail" required class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5" placeholder="you@example.com" />
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">Password</label>
+        <input type="password" id="loginPassword" required class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5" placeholder="••••••••" />
+      </div>
+      <button type="submit" id="loginSubmit" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition">
+        Log in
+      </button>
+    </form>
+
+    <!-- Signup form -->
+    <form id="signupForm" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col gap-4">
+      <div>
+        <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">Full name</label>
+        <input type="text" id="signupName" required class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5" placeholder="Your name" />
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">Email</label>
+        <input type="email" id="signupEmail" required class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5" placeholder="you@example.com" />
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">Password</label>
+        <input type="password" id="signupPassword" required minlength="6" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5" placeholder="At least 6 characters" />
+      </div>
+      <button type="submit" id="signupSubmit" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition">
+        Create account
+      </button>
+    </form>
+
+    <!-- Confirmation-pending notice -->
+    <div id="confirmNotice" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-5 text-center">
+      <p class="text-sm font-semibold text-amber-800">Check your email</p>
+      <p class="text-xs text-amber-700 mt-1">We sent a confirmation link to <span id="confirmEmailOut" class="font-semibold"></span>. Click it, then come back and log in.</p>
+    </div>
+
+  </main>
+
+<script>
+  const BACKEND_URL = 'http://localhost:5000';
+
+  const toast = document.getElementById('toast');
+  function showToast(msg, type) {
+    toast.textContent = msg;
+    toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full shadow-xl text-sm font-medium ' +
+      (type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white');
+    toast.classList.remove('hidden');
+    setTimeout(() => toast.classList.add('hidden'), 4000);
+  }
+
+  const tabLogin = document.getElementById('tabLogin');
+  const tabSignup = document.getElementById('tabSignup');
+  const loginForm = document.getElementById('loginForm');
+  const signupForm = document.getElementById('signupForm');
+  const confirmNotice = document.getElementById('confirmNotice');
+
+  function showLogin() {
+    loginForm.classList.remove('hidden');
+    signupForm.classList.add('hidden');
+    confirmNotice.classList.add('hidden');
+    tabLogin.className = 'flex-1 text-sm font-semibold py-2 rounded-xl bg-slate-900 text-white transition';
+    tabSignup.className = 'flex-1 text-sm font-semibold py-2 rounded-xl text-slate-500 hover:bg-slate-50 transition';
+  }
+
+  function showSignup() {
+    signupForm.classList.remove('hidden');
+    loginForm.classList.add('hidden');
+    confirmNotice.classList.add('hidden');
+    tabSignup.className = 'flex-1 text-sm font-semibold py-2 rounded-xl bg-slate-900 text-white transition';
+    tabLogin.className = 'flex-1 text-sm font-semibold py-2 rounded-xl text-slate-500 hover:bg-slate-50 transition';
+  }
+
+  tabLogin.addEventListener('click', showLogin);
+  tabSignup.addEventListener('click', showSignup);
+
+  // --- Login ---
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = document.getElementById('loginSubmit');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Logging in...';
+
+    try {
+      const res = await fetch(BACKEND_URL + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: document.getElementById('loginEmail').value,
+          password: document.getElementById('loginPassword').value,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast(data.error || 'Login failed', 'error');
+        return;
+      }
+
+      if (!data.session) {
+        showToast('Please confirm your email first, then log in', 'error');
+        return;
+      }
+
+      // Store the token for the report form to use
+      sessionStorage.setItem('resqaid_access_token', data.session.access_token);
+      sessionStorage.setItem('resqaid_user_name', data.user?.user_metadata?.full_name || '');
+
+      showToast('Logged in!', 'success');
+      window.location.href = 'index.html';
+    } catch (err) {
+      showToast('Could not reach the backend. Is it running on port 5000?', 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Log in';
+    }
+  });
+
+  // --- Signup ---
+  signupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = document.getElementById('signupSubmit');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating account...';
+
+    const email = document.getElementById('signupEmail').value;
+
+    try {
+      const res = await fetch(BACKEND_URL + '/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password: document.getElementById('signupPassword').value,
+          fullName: document.getElementById('signupName').value,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast(data.error || 'Signup failed', 'error');
+        return;
+      }
+
+      signupForm.classList.add('hidden');
+      document.getElementById('confirmEmailOut').textContent = email;
+      confirmNotice.classList.remove('hidden');
+    } catch (err) {
+      showToast('Could not reach the backend. Is it running on port 5000?', 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Create account';
+    }
+  });
+
+  // If already logged in, skip straight to reporting
+  if (sessionStorage.getItem('resqaid_access_token')) {
+    window.location.href = 'index.html';
+  }
+</script>
+</body>
+</html>

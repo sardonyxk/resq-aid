@@ -26,17 +26,21 @@ export const createCase = asyncHandler(async (req, res) => {
   const assessment = await assessImageBuffer(req.file.buffer, req.file.mimetype);
   const reportText = description ?? assessment.injurySummary;
 
-
   // 2. Check for nearby active cases (dedup/escalation check)
-  const nearbyCases = await findNearbyActiveCases(parsedLat, parsedLng);
+  const animalTypeForDedup =
+  assessment.visibleAnimalType && assessment.visibleAnimalType !== 'unclear'
+    ? assessment.visibleAnimalType
+    : null; // unclear -> don't filter, can't be confident enough to exclude candidates
+
+  const nearbyCases = await findNearbyActiveCases(parsedLat, parsedLng, animalTypeForDedup);
 
   if (nearbyCases.length > 0) {
     const existingCase = nearbyCases[0]; // closest one
-    
+
     const classification = await classifyAgainstExisting(reportText, existingCase);
 
     if (classification.classification === 'duplicate') {
-      const isSameReporter = existingCase.reporter_id && existingCase.reporter_id === req.user.id;
+      const isSameReporter = existingCase.reporter_id && existingCase.reporter_id === (req.user?.id ?? null);
 
       // Increment report_count, no new case created
       const { data: updatedCase, error: updateError } = await supabase
@@ -57,7 +61,7 @@ export const createCase = asyncHandler(async (req, res) => {
         case_id: existingCase.id,
         status: updatedCase.status,
         note: `${isSameReporter ? 'Same reporter resubmitted' : 'New reporter confirms'}: ${classification.reasoning}`,
-        updated_by: req.user.id,
+        updated_by: req.user?.id ?? null,
       });
 
       return res.status(200).json({
@@ -69,7 +73,7 @@ export const createCase = asyncHandler(async (req, res) => {
     }
 
     if (classification.classification === 'escalation') {
-      const isSameReporter = existingCase.reporter_id && existingCase.reporter_id === req.user.id;
+      const isSameReporter = existingCase.reporter_id && existingCase.reporter_id === (req.user?.id ?? null);
       const escalatedStatus = existingCase.assigned_team_id ? 'dispatched' : 'triaged';
 
       const { data: updatedCase, error: updateError } = await supabase
@@ -93,7 +97,7 @@ export const createCase = asyncHandler(async (req, res) => {
         case_id: existingCase.id,
         status: escalatedStatus,
         note: `ESCALATION (${isSameReporter ? 'same reporter' : 'new reporter'}): ${classification.reasoning}`,
-        updated_by: req.user.id,
+        updated_by: req.user?.id ?? null,
       });
 
       return res.status(200).json({
@@ -112,7 +116,7 @@ export const createCase = asyncHandler(async (req, res) => {
   const { data: caseRow, error: caseError } = await supabase
     .from('rescue_cases')
     .insert({
-      reporter_id: req.user?.id ?? null,
+      reporter_id: req.user.id,
       reporter_contact: reporterContact ?? null,
       animal_type:
         assessment.visibleAnimalType && assessment.visibleAnimalType !== 'unclear'
@@ -140,7 +144,8 @@ export const createCase = asyncHandler(async (req, res) => {
       : 'No available team found within radius',
     updated_by: req.user?.id ?? null,
   });
-res.status(201).json({
+
+  res.status(201).json({
     case: caseRow,
     assessment,
     nearestTeam,

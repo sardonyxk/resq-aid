@@ -1,0 +1,6 @@
+{
+  "name": "ResQ-Aid",
+  "description": "Kathmandu Valley real-time stray and injured animal rescue network featuring role-based simulation, geolocation tracking, citizen trust score systems, and progress tracking.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

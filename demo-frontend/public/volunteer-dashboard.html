@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ResQ-Aid — Volunteer Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+</style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+
+  <header class="bg-white border-b border-slate-200 px-6 py-4">
+    <div class="max-w-3xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">🚑</div>
+        <div>
+          <h1 class="text-lg font-extrabold tracking-tight text-slate-900">ResQ-Aid</h1>
+          <p class="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">Volunteer Dashboard</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="userNameOut" class="text-sm font-medium text-slate-600"></span>
+        <button type="button" id="logoutBtn" class="text-xs text-slate-400 hover:text-slate-700 underline">Log out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-4 py-8 flex flex-col gap-6">
+
+    <div id="toast" class="hidden fixed top-5 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full shadow-xl text-sm font-medium"></div>
+
+    <!-- Not authorized state -->
+    <div id="unauthorizedCard" class="hidden bg-white rounded-2xl shadow-sm border border-rose-200 p-8 text-center">
+      <p class="text-lg font-bold text-rose-700">Not authorized</p>
+      <p class="text-sm text-slate-500 mt-2">This dashboard is only available to registered volunteers.</p>
+      <a href="index.html" class="inline-block mt-4 text-sm text-blue-600 hover:underline">← Back to report form</a>
+    </div>
+
+    <div id="dashboardContent" class="hidden flex flex-col gap-6">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold text-slate-900">My Assigned Cases</h2>
+        <button id="refreshBtn" type="button" class="text-xs text-blue-600 hover:underline">Refresh</button>
+      </div>
+
+      <div id="casesList" class="flex flex-col gap-3"></div>
+      <p id="casesEmpty" class="hidden text-sm text-slate-400 text-center py-10 bg-white rounded-2xl border border-slate-200">
+        No cases assigned to you right now.
+      </p>
+    </div>
+
+  </main>
+
+<script>
+  const BACKEND_URL = 'http://localhost:5000';
+
+  const accessToken = sessionStorage.getItem('resqaid_access_token');
+  if (!accessToken) {
+    window.location.href = 'login.html';
+  }
+  document.getElementById('userNameOut').textContent = sessionStorage.getItem('resqaid_user_name') || '';
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.removeItem('resqaid_access_token');
+    sessionStorage.removeItem('resqaid_user_name');
+    window.location.href = 'login.html';
+  });
+
+  const toast = document.getElementById('toast');
+  function showToast(msg, type) {
+    toast.textContent = msg;
+    toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full shadow-xl text-sm font-medium ' +
+      (type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white');
+    toast.classList.remove('hidden');
+    setTimeout(() => toast.classList.add('hidden'), 4000);
+  }
+
+  async function authedFetch(path, options = {}) {
+    const res = await fetch(BACKEND_URL + path, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        'Authorization': 'Bearer ' + accessToken,
+      },
+    });
+    if (res.status === 401) {
+      sessionStorage.removeItem('resqaid_access_token');
+      window.location.href = 'login.html';
+      throw new Error('Session expired');
+    }
+    return res;
+  }
+
+  const STATUS_LABELS = {
+    reported: 'Reported',
+    triaged: 'Triaged',
+    dispatched: 'Dispatched to you',
+    in_progress: 'In progress',
+    rescued: 'Rescued',
+    closed: 'Closed',
+    cancelled: 'Cancelled',
+  };
+
+  async function loadCases() {
+    const res = await authedFetch('/api/volunteer/cases');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load cases');
+    renderCases(data.cases);
+  }
+
+  function renderCases(cases) {
+    const list = document.getElementById('casesList');
+    const empty = document.getElementById('casesEmpty');
+    list.innerHTML = '';
+
+    if (!cases.length) {
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+
+    cases.forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-3';
+
+      const canUpdate = c.status === 'dispatched' || c.status === 'in_progress';
+      const nextStatusOptions = c.status === 'dispatched'
+        ? `<option value="in_progress">Mark in progress</option>`
+        : c.status === 'in_progress'
+          ? `<option value="in_progress" selected>In progress</option><option value="rescued">Mark rescued</option>`
+          : '';
+
+      row.innerHTML = `
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-sm font-semibold text-slate-800 capitalize">${c.animal_type} — urgency ${c.urgency_score ?? '—'}/5</p>
+            <p class="text-xs text-slate-500 mt-1">${c.description || 'No description'}</p>
+            <p class="text-[11px] text-slate-400 mt-1">${c.landmark || ''}</p>
+          </div>
+          <span class="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-slate-100 text-slate-600 whitespace-nowrap">${STATUS_LABELS[c.status] || c.status}</span>
+        </div>
+        ${c.lat && c.lng ? `
+          <a href="https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}" target="_blank"
+             class="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 w-fit">
+            📍 Get directions
+          </a>
+        ` : ''}
+        ${canUpdate ? `
+          <select class="status-select text-xs border border-slate-200 rounded-lg px-2 py-1.5 w-fit" data-case-id="${c.id}">
+            <option value="">Update status...</option>
+            ${nextStatusOptions}
+          </select>
+        ` : ''}
+      `;
+      list.appendChild(row);
+    });
+
+    document.querySelectorAll('.status-select').forEach((el) => {
+      el.addEventListener('change', async (e) => {
+        if (!e.target.value) return;
+        const caseId = e.target.getAttribute('data-case-id');
+        try {
+          const res = await authedFetch(`/api/volunteer/cases/${caseId}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: e.target.value }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+          showToast('Status updated', 'success');
+          await loadCases();
+        } catch (err) {
+          showToast(err.message || 'Update failed', 'error');
+        }
+      });
+    });
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', () =>
+    loadCases().catch((e) => showToast(e.message, 'error'))
+  );
+
+  (async () => {
+    try {
+      await loadCases();
+      document.getElementById('dashboardContent').classList.remove('hidden');
+    } catch (err) {
+      document.getElementById('unauthorizedCard').classList.remove('hidden');
+    }
+  })();
+</script>
+</body>
+</html>

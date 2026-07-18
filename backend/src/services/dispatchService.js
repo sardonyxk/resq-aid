@@ -14,10 +14,11 @@ export async function findNearestTeamForLocation(lat, lng, radiusMeters = 10000)
   return data ?? [];
 }
 
-export async function findNearbyActiveCases(lat, lng, radiusMeters = 50) {
+export async function findNearbyActiveCases(lat, lng, animalType = null, radiusMeters = 50) {
   const { data, error } = await supabase.rpc('nearby_active_cases', {
     lat,
     lng,
+    animal_type_filter: animalType,
     radius_meters: radiusMeters,
   });
 
